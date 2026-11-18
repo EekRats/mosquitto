@@ -139,24 +139,28 @@ int http__read(struct mosquitto *mosq)
 				header_have_upgrade = true;
 			}
 		}else if(!strncasecmp(http_headers[i].name, "Connection", http_headers[i].name_len)){
-			/* Check for "upgrade" */
+			/* Connection is a comma separated list of tokens; set the flag only
+			 * if one of them is "upgrade". The previous code compared with a
+			 * length of value_len-j, which for the token after the final comma
+			 * is 0, so strncasecmp() returned a match for any Connection value. */
 			const char *str = http_headers[i].value;
+			size_t value_len = http_headers[i].value_len;
 			size_t start = 0;
-			size_t j;
-			for(j=0; j<http_headers[i].value_len; j++){
-				if(str[j] == ','){
-					if(!strncasecmp(&str[start], "upgrade", http_headers[i].value_len-j)){
+			for(size_t j=0; j<=value_len; j++){
+				if(j == value_len || str[j] == ','){
+					size_t s = start, e = j;
+					while(s < e && str[s] == ' '){
+						s++;
+					}
+					while(e > s && str[e-1] == ' '){
+						e--;
+					}
+					if(e - s == strlen("upgrade") && !strncasecmp(&str[s], "upgrade", e - s)){
 						header_have_connection = true;
 						break;
-					}else{
-						start = j+1;
 					}
-				}else if(str[j] == ' '){
 					start = j+1;
 				}
-			}
-			if(!strncasecmp(&str[start], "upgrade", http_headers[i].value_len-j)){
-				header_have_connection = true;
 			}
 		}else if(!strncasecmp(http_headers[i].name, "Sec-WebSocket-Key", http_headers[i].name_len)){
 			client_key = http_headers[i].value;
